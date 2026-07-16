@@ -2,7 +2,10 @@ module github.com/uvalib/libra-etd-proquest-import
 
 go 1.26.5
 
-require github.com/uvalib/easystore/uvaeasystore v0.0.0-20260702171502-cf98e17eda32
+require (
+	github.com/uvalib/easystore/uvaeasystore v0.0.0-20260702171502-cf98e17eda32
+	github.com/uvalib/libra-metadata v0.0.0-20250513131340-aa4ee04ad7d1
+)
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.42.1 // indirect

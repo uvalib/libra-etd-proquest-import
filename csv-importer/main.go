@@ -18,27 +18,27 @@ var logLevel string
 // main entry point
 func main() {
 
-	var csvFile string
-	var assetDir string
+	var inFile string
+	var assets string
 	var namespace string
-	var dryRun bool
-	var noFiles bool
+	var dryrun bool
+	var nofiles bool
 	var limit int
 	var debug bool
 	var logger *log.Logger
 
-	flag.StringVar(&csvFile, "csvFile", "", "input CSV file")
-	flag.StringVar(&assetDir, "assetDir", "", "asset directory (default to input file location)")
+	flag.StringVar(&inFile, "infile", "", "input file")
+	flag.StringVar(&assets, "assets", "", "asset directory (default to input file location)")
 	flag.StringVar(&namespace, "namespace", "", "namespace to import")
-	flag.BoolVar(&dryRun, "dryRun", false, "dry run only")
-	flag.BoolVar(&noFiles, "noFiles", false, "no files imported")
+	flag.BoolVar(&dryrun, "dryrun", false, "dry run only")
+	flag.BoolVar(&nofiles, "nofiles", false, "do not include files")
 	flag.BoolVar(&debug, "debug", false, "log debug information")
 	flag.IntVar(&limit, "limit", 0, "limit import count (default is no limit)")
 	flag.StringVar(&logLevel, "loglevel", "E", "Logging level (D|I|W|E)")
 	flag.Parse()
 
 	// check the required values
-	if len(csvFile) == 0 || len(namespace) == 0 {
+	if len(inFile) == 0 || len(namespace) == 0 {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
@@ -49,8 +49,8 @@ func main() {
 	}
 
 	// if this was not provided, default to the same as the CSV file
-	if len(assetDir) == 0 {
-		assetDir = filepath.Dir(csvFile)
+	if len(assets) == 0 {
+		assets = filepath.Dir(inFile)
 	}
 
 	if debug == true {
@@ -58,9 +58,9 @@ func main() {
 	}
 
 	// open the input file
-	f, err := os.Open(csvFile)
+	f, err := os.Open(inFile)
 	if err != nil {
-		logError(fmt.Sprintf("opening %s (%s)", csvFile, err))
+		logError(fmt.Sprintf("opening %s (%s)", inFile, err))
 		os.Exit(1)
 	}
 	defer f.Close()
@@ -111,7 +111,7 @@ func main() {
 		}
 
 		// make the object to import
-		eso, err := makeEtdObject(namespace, assetDir, noFiles, record)
+		eso, err := makeEtdObject(namespace, assets, nofiles, record)
 
 		if err != nil {
 			logError(fmt.Sprintf("creating object (%s), continuing", err.Error()))
@@ -120,20 +120,22 @@ func main() {
 		}
 
 		// if we are configured to import
-		if dryRun == false {
+		if dryrun == false {
 			_, err = es.ObjectCreate(eso)
 			if err != nil {
 				logError(fmt.Sprintf("importing ns/oid [%s/%s] (%s), continuing", eso.Namespace(), eso.Id(), err.Error()))
 				errCount++
 				continue
 			}
+
+			logInfo(fmt.Sprintf("imported ns/oid [%s/%s]", eso.Namespace(), eso.Id()))
 		}
 
 		okCount++
 	}
 
 	verb := "imported"
-	if dryRun == true {
+	if dryrun == true {
 		verb = "processed"
 	}
 
