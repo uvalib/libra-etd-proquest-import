@@ -6,8 +6,10 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"os"
+	"time"
 )
 
 func loadFile(filename string) ([]byte, error) {
@@ -21,6 +23,15 @@ func loadFile(filename string) ([]byte, error) {
 func fileExists(filename string) bool {
 	_, err := os.Stat(filename)
 	return err == nil || errors.Is(err, os.ErrNotExist) == false
+}
+
+func makeDate(date string, format string) (string, error) {
+	tm, err := time.Parse(format, date)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%04d-%02d-%02dT%02d:%02d:%02dZ",
+		tm.Year(), tm.Month(), tm.Day(), tm.Hour(), tm.Minute(), tm.Second()), nil
 }
 
 func logDebug(msg string) {

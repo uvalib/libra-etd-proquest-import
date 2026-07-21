@@ -66,19 +66,24 @@ func main() {
 	defer f.Close()
 
 	var proxyConfig uvaeasystore.EasyStoreProxyConfig
-	proxyConfig = uvaeasystore.ProxyConfigImpl{
-		ServiceEndpoint: os.Getenv("ESENDPOINT"),
-		Log:             logger,
-	}
-	es, err := uvaeasystore.NewEasyStoreProxy(proxyConfig)
+	var es uvaeasystore.EasyStore
 
-	if err != nil {
-		logError(fmt.Sprintf("creating easystore (%s)", err.Error()))
-		os.Exit(1)
-	}
+	// dont need this if we are doing a dry run
+	if dryrun == false {
+		proxyConfig = uvaeasystore.ProxyConfigImpl{
+			ServiceEndpoint: os.Getenv("ESENDPOINT"),
+			Log:             logger,
+		}
+		es, err = uvaeasystore.NewEasyStoreProxy(proxyConfig)
 
-	// important, cleanup properly
-	defer es.Close()
+		if err != nil {
+			logError(fmt.Sprintf("creating easystore (%s)", err.Error()))
+			os.Exit(1)
+		}
+
+		// important, cleanup properly
+		defer es.Close()
+	}
 
 	// new CSV reader
 	reader := csv.NewReader(f)

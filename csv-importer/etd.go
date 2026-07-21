@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/uvalib/easystore/uvaeasystore"
 	"github.com/uvalib/libra-metadata"
@@ -38,6 +39,10 @@ const (
 	fieldCount
 )
 
+var licenseTextLookup = map[string]string{
+	"CC0": "CC0 (permitting unconditional free use, with or without attribution)",
+}
+
 func makeEtdObject(namespace string, assetDir string, nofiles bool, record []string) (uvaeasystore.EasyStoreObject, error) {
 
 	o := uvaeasystore.NewEasyStoreObject(namespace, "")
@@ -53,6 +58,10 @@ func makeEtdObject(namespace string, assetDir string, nofiles bool, record []str
 	if err != nil {
 		return nil, err
 	}
+
+	// log as necessary
+	logEtdFields(fields)
+	logEtdMetadata(domainMetadata)
 
 	// serialize domain metadata
 	buf, err := domainMetadata.Payload()
@@ -102,20 +111,53 @@ func makeEtdObject(namespace string, assetDir string, nofiles bool, record []str
 func libraEtdMetadata(record []string) (librametadata.ETDWork, error) {
 	meta := librametadata.ETDWork{}
 
+	//
 	// default field mapping
+	//
+
 	meta.Program = record[department]
 	meta.Degree = record[degree]
 	meta.Title = record[title]
 	meta.Abstract = record[abstract]
-	//meta.License = record[license]
 	meta.Language = record[language]
 
-	meta.Keywords = strings.Split(record[keywords], ",")
+	//
+	// specialized field processing
+	//
 
-	fmt.Printf("Authors:  [%s]\n", record[authors])
-	fmt.Printf("Advisors: [%s]\n", record[advisors])
-	fmt.Printf("Year:     [%s]\n", record[year])
-	fmt.Printf("License:  [%s]\n", record[license])
+	// see if we have appropriate text for this license
+	v, ok := licenseTextLookup[record[license]]
+	if ok {
+		meta.License = v
+	} else {
+		meta.License = record[license]
+		logWarning(fmt.Sprintf("no license text mapping for [%s]", record[license]))
+	}
+
+	// split with the specified field seperator
+	meta.Keywords = strings.Split(record[keywords], "|")
+
+	// we support only a single author
+	authorSet := makeEtdNames(record[authors])
+	if len(authorSet) != 0 {
+		meta.Author = authorSet[0]
+	}
+
+	advisorSet := makeEtdNames(record[advisors])
+	if len(advisorSet) != 0 {
+		meta.Advisors = advisorSet
+	}
+
+	//logDebug(fmt.Sprintf("authors:    [%s]", record[authors]))
+	//logDebug(fmt.Sprintf("title:      [%s]", record[title]))
+	//logDebug(fmt.Sprintf("degree:     [%s]", record[degree]))
+	//logDebug(fmt.Sprintf("license:    [%s]", record[license]))
+	//logDebug(fmt.Sprintf("year:       [%s]", record[year]))
+	//logDebug(fmt.Sprintf("language:   [%s]", record[language]))
+	//logDebug(fmt.Sprintf("keywords:   [%s]", record[keywords]))
+	//logDebug(fmt.Sprintf("department: [%s]", record[department]))
+	//logDebug(fmt.Sprintf("abstract:   [%s]", record[abstract]))
+	//logDebug(fmt.Sprintf("advisors:   [%s]", record[advisors]))
 
 	return meta, nil
 }
@@ -124,15 +166,56 @@ func libraEtdFields(meta librametadata.ETDWork, record []string) (uvaeasystore.E
 	fields := uvaeasystore.DefaultEasyStoreFields()
 
 	// all imported items get these
-	fields["disposition"] = "imported"
-	fields["invitation-sent"] = "imported"
+	fields["disposition"] = "proquest"
 
 	// all published ETD's get these
 	fields["draft"] = "false"
+	fields["invitation-sent"] = "imported"
 	fields["submitted-sent"] = "imported"
 	fields["sis-sent"] = "imported"
 
+	// try and make a clean publish date string
+	str, err := makeDate(record[year], "2006")
+	if err == nil {
+		fields["publish-date"] = str
+	}
+
+	// maybe?
+	fields["depositor"] = "dpg3k"
+	fields["create-date"] = time.Now().Format("2006-01-02")
+
+	// for now...
+	fields["default-visibility"] = "open"
+
 	return fields, nil
+}
+
+func makeEtdNames(names string) []librametadata.ContributorData {
+
+	cdata := make([]librametadata.ContributorData, 0)
+	if len(names) != 0 {
+		for n := range strings.SplitSeq(names, "|") {
+			bits := strings.Split(n, ",")
+			if len(bits) >= 2 {
+				fname := strings.TrimSpace(bits[1])
+				sname := strings.TrimSpace(bits[0])
+				cdata = append(cdata, librametadata.ContributorData{FirstName: fname, LastName: sname})
+			}
+		}
+	}
+
+	return cdata
+}
+
+func logEtdMetadata(meta librametadata.ETDWork) {
+	b, _ := meta.Payload()
+	logDebug(fmt.Sprintf("metadata: %s", string(b)))
+}
+
+func logEtdFields(fields uvaeasystore.EasyStoreObjectFields) {
+	for k, v := range fields {
+		logDebug(fmt.Sprintf("field: %s=%s", k, v))
+	}
 }
 
 //
