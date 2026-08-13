@@ -199,7 +199,11 @@ func makeEtdNames(names string) []librametadata.ContributorData {
 			if len(bits) >= 2 {
 				fname := strings.TrimSpace(bits[1])
 				sname := strings.TrimSpace(bits[0])
-				cdata = append(cdata, librametadata.ContributorData{FirstName: fname, LastName: sname})
+				cdata = append(cdata, librametadata.ContributorData{
+					FirstName:   fname,
+					LastName:    sname,
+					Institution: "University of Virginia",
+				})
 			}
 		}
 	}
