@@ -21,6 +21,7 @@ func main() {
 	var inFile string
 	var assets string
 	var namespace string
+	var license string
 	var dryrun bool
 	var nofiles bool
 	var limit int
@@ -30,6 +31,7 @@ func main() {
 	flag.StringVar(&inFile, "infile", "", "input file")
 	flag.StringVar(&assets, "assets", "", "asset directory (default to input file location)")
 	flag.StringVar(&namespace, "namespace", "", "namespace to import")
+	flag.StringVar(&license, "license", "ARR", "CC0, ARR (all rights reserved)")
 	flag.BoolVar(&dryrun, "dryrun", false, "dry run only")
 	flag.BoolVar(&nofiles, "nofiles", false, "do not include files")
 	flag.BoolVar(&debug, "debug", false, "log debug information")
@@ -116,7 +118,7 @@ func main() {
 		}
 
 		// make the object to import
-		eso, err := makeEtdObject(namespace, assets, nofiles, record)
+		eso, err := makeEtdObject(namespace, assets, license, nofiles, record)
 
 		if err != nil {
 			logError(fmt.Sprintf("creating object (%s), continuing", err.Error()))
@@ -132,11 +134,10 @@ func main() {
 				errCount++
 				continue
 			}
-
-			logInfo(fmt.Sprintf("imported ns/oid [%s/%s]", eso.Namespace(), eso.Id()))
 		}
 
 		okCount++
+		logAlways(fmt.Sprintf("processed item %d ns/oid [%s/%s]", okCount+errCount, eso.Namespace(), eso.Id()))
 	}
 
 	verb := "imported"

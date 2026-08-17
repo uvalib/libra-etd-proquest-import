@@ -6,7 +6,6 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"path/filepath"
 	"strings"
 	"time"
@@ -15,40 +14,95 @@ import (
 	"github.com/uvalib/libra-metadata"
 )
 
-// ID,AUTHORS,URI,TITLE,Virgo URL,Virgo Subjects,DEGREE,LICENSE,YEAR,SCHOOL NAME,DISS LANG,ISBN,PAGE COUNT,PQSUBJ,KEYWORD,DEPARTMENT,ABSTRACT,ADVISORS,ADVISOR URI
+// PUB NUMBER,PDF FILENAME,AUTHOR,TITLE,CALL NUMBER,DEPARTMENT,WIKIDATA URI,ORCID URI,VIAF URI,VIRGO URL,YEAR,SCHOOL NAME,PUB DATE,DISS LANG,LANG CODE,DEGREE,DEGREE DESC,ISBN,PAGE COUNT,KEYWORD,ADVISORS 1,ADVISOR 1 URI,ADVISORS 2,ADVISOR 2 URI,ADVISORS 3,ADVISOR 3 URI,ADVISORS 4,ADVISOR 4 URI,COMMITTEE MEMBERS 1,COMMITTEE 1 URI,COMMITTEE MEMBERS 2,COMMITTEE 2 URI,COMMITTEE MEMBERS 3,COMMITTEE 3 URI,COMMITTEE MEMBERS 4,COMMITTEE 4 URI,COMMITTEE MEMBERS 5,COMMITTEE 5 URI,ABSTRACT,ABSTRACT LANG,PUBLIC NOTE,SUPPLEMENTAL FILE NAMES,PROQUEST AUTHOR,Author Match,PROQUEST TITLE
 const (
 	id = iota
-	authors
-	uri
+	etd_filename
+	author
 	title
-	virgoUrl
-	virgoSubjects
-	degree
-	license
-	year
-	schoolName
-	language
-	isbn
-	pageCount
-	subject
-	keywords
+	call_number
 	department
+	wikidata_uri
+	orcid_uri
+	viaf_uri
+	virgo_url
+	year
+	school_name
+	pub_date
+	language
+	language_code
+	degree
+	degree_desc
+	isbn
+	page_count
+	keywords
+	advisor_1
+	advisor_1_uri
+	advisor_2
+	advisor_2_uri
+	advisor_3
+	advisor_3_uri
+	advisor_4
+	advisor_4_uri
+	committee_1
+	committee_1_uri
+	committee_2
+	committee_2_uri
+	committee_3
+	committee_3_uri
+	committee_4
+	committee_4_uri
+	committee_5
+	committee_5_uri
 	abstract
-	advisors
-	advisorsUri
+	abstract_lang
+	public_note
+	suplemental_filename
+	proquest_author
+	author_match
+	proquest_title
 	fieldCount
 )
 
 var licenseTextLookup = map[string]string{
 	"CC0": "CC0 (permitting unconditional free use, with or without attribution)",
+	"ARR": "All rights reserved by the author (no additional license for public reuse)",
 }
 
-func makeEtdObject(namespace string, assetDir string, nofiles bool, record []string) (uvaeasystore.EasyStoreObject, error) {
+var degreeTextLookup = map[string]string{
+	//"":       "BA (Bachelor of Arts)",
+	//"":       "BARH (Bachelor of Architectural History)",
+	//"":       "BS (Bachelor of Science)",
+	//"":       "BSC (Bachelor of Science in Commerce)",
+	//"":       "BUEP (Bachelor of Urban and Environmental Planning)",
+	"D.N.P.": "DNP (Doctor of Nursing Practice)",
+	"Ed.D.":  "EDD (Doctor of Education)",
+	//"":       "EDS (Education Specialist)",
+	"M.A.": "MA (Master of Arts)",
+	//"":       "MAPE (Master of Arts in Physics Education)",
+	//"":       "MAR (Master of Architecture)",
+	//"":       "MARH (Master of Architectural History)",
+	//"":       "MCS (Master of Computer Science)",
+	//"":       "ME (Master of Engineering)",
+	"M.Ed.": "MED (Master of Education)",
+	//"":       "MEP (Master of Engineering Physics)",
+	//"":       "MFA (Master of Fine Arts)",
+	//"":       "MLA (Master of Landscape Architecture)",
+	//"":       "MMSE (Master of Materials Science and Engineering)",
+	//"":       "MPP (Master of Public Policy)",
+	"M.S.": "MS (Master of Science)",
+	//"":       "MSDS (Master of Science in Data Science)",
+	//"":       "MUEP (Master of Urban and Environmental Planning)",
+	"Ph.D.": "PHD (Doctor of Philosophy)",
+	//"":       "SJD (Doctor of Juridical Science)",
+}
+
+func makeEtdObject(namespace string, assetDir string, license string, nofiles bool, record []string) (uvaeasystore.EasyStoreObject, error) {
 
 	o := uvaeasystore.NewEasyStoreObject(namespace, "")
 
 	// import domain metadata
-	domainMetadata, err := libraEtdMetadata(record)
+	domainMetadata, err := libraEtdMetadata(license, record)
 	if err != nil {
 		return nil, err
 	}
@@ -79,74 +133,91 @@ func makeEtdObject(namespace string, assetDir string, nofiles bool, record []str
 	// do we import files?
 	if nofiles == false {
 
-		fname := filepath.Join(assetDir, record[id]) + ".pdf"
-
-		// make sure the file exists
-		if fileExists(fname) == false {
-			logError(fmt.Sprintf("file [%s] does not exist", fname))
-			return nil, uvaeasystore.ErrFileNotFound
-		}
-
-		// attempt to load the file
-		buf, err := loadFile(fname)
+		// load the etd blob
+		etdBlob, err := loadBlob(filepath.Join(assetDir, record[etd_filename]), record[etd_filename])
 		if err != nil {
-			logError(fmt.Sprintf("loading file (%s)", err.Error()))
 			return nil, err
 		}
 
-		// attempt to determine the content type
-		mt := http.DetectContentType(buf)
+		blobs := make([]uvaeasystore.EasyStoreBlob, 0)
+		blobs = append(blobs, etdBlob)
 
-		// create the blob
-		blob := uvaeasystore.NewEasyStoreBlob(record[id], mt, buf)
-		blobs := []uvaeasystore.EasyStoreBlob{blob}
+		if len(record[suplemental_filename]) != 0 {
+			supBlob, err := loadBlob(filepath.Join(assetDir, record[suplemental_filename]), record[suplemental_filename])
+			if err != nil {
+				return nil, err
+			}
+			blobs = append(blobs, supBlob)
+		}
+
 		o.SetFiles(blobs)
-
-		logInfo(fmt.Sprintf("loaded file [%s]", fname))
 	}
 
 	return o, nil
 }
 
-func libraEtdMetadata(record []string) (librametadata.ETDWork, error) {
+func libraEtdMetadata(license string, record []string) (librametadata.ETDWork, error) {
 	meta := librametadata.ETDWork{}
 
 	//
-	// default field mapping
+	// standard field mapping
 	//
 
-	meta.Program = record[department]
-	meta.Degree = record[degree]
-	meta.Title = record[title]
-	meta.Abstract = record[abstract]
+	meta.Title = unknownIfEmpty(record[title])
+	meta.Program = unknownIfEmpty(record[department])
+	meta.RelatedURLs = []string{record[virgo_url]}
 	meta.Language = record[language]
+	meta.Abstract = record[abstract]
+	meta.Notes = record[public_note]
 
 	//
 	// specialized field processing
 	//
 
+	v, ok := degreeTextLookup[record[degree]]
+	if ok {
+		meta.Degree = v
+	} else {
+		meta.Degree = record[degree]
+		logWarning(fmt.Sprintf("no degree text mapping for [%s]", record[degree]))
+	}
+
 	// see if we have appropriate text for this license
-	v, ok := licenseTextLookup[record[license]]
+	v, ok = licenseTextLookup[license]
 	if ok {
 		meta.License = v
 	} else {
-		meta.License = record[license]
-		logWarning(fmt.Sprintf("no license text mapping for [%s]", record[license]))
+		meta.License = license
+		logWarning(fmt.Sprintf("no license text mapping for [%s]", license))
 	}
 
 	// split with the specified field seperator
 	meta.Keywords = strings.Split(record[keywords], "|")
 
 	// we support only a single author
-	authorSet := makeEtdNames(record[authors])
-	if len(authorSet) != 0 {
-		meta.Author = authorSet[0]
+	author1 := makeEtdName(record[author], record[school_name])
+	if author1 != nil {
+		author1.Department = record[department]
+		author1.ORCID = record[orcid_uri]
+
+		meta.Author = *author1
 	}
 
-	advisorSet := makeEtdNames(record[advisors])
-	if len(advisorSet) != 0 {
-		meta.Advisors = advisorSet
-	}
+	// we support multiple advisors/contributors
+	advisorSet := make([]librametadata.ContributorData, 0)
+
+	// advisors
+	advisorSet = addContributor(advisorSet, makeEtdName(record[advisor_1], record[school_name]))
+	advisorSet = addContributor(advisorSet, makeEtdName(record[advisor_2], record[school_name]))
+	advisorSet = addContributor(advisorSet, makeEtdName(record[advisor_3], record[school_name]))
+	advisorSet = addContributor(advisorSet, makeEtdName(record[advisor_4], record[school_name]))
+
+	// committee members
+	advisorSet = addContributor(advisorSet, makeEtdName(record[committee_1], record[school_name]))
+	advisorSet = addContributor(advisorSet, makeEtdName(record[committee_2], record[school_name]))
+	advisorSet = addContributor(advisorSet, makeEtdName(record[committee_3], record[school_name]))
+	advisorSet = addContributor(advisorSet, makeEtdName(record[committee_4], record[school_name]))
+	advisorSet = addContributor(advisorSet, makeEtdName(record[committee_5], record[school_name]))
 
 	//logDebug(fmt.Sprintf("authors:    [%s]", record[authors]))
 	//logDebug(fmt.Sprintf("title:      [%s]", record[title]))
@@ -164,9 +235,11 @@ func libraEtdMetadata(record []string) (librametadata.ETDWork, error) {
 
 func libraEtdFields(meta librametadata.ETDWork, record []string) (uvaeasystore.EasyStoreObjectFields, error) {
 	fields := uvaeasystore.DefaultEasyStoreFields()
+	var err error
 
 	// all imported items get these
 	fields["disposition"] = "proquest"
+	fields["source"] = fmt.Sprintf("proquest:%s", record[id])
 
 	// all published ETD's get these
 	fields["draft"] = "false"
@@ -174,41 +247,46 @@ func libraEtdFields(meta librametadata.ETDWork, record []string) (uvaeasystore.E
 	fields["submitted-sent"] = "imported"
 	fields["sis-sent"] = "imported"
 
-	// try and make a clean publish date string
-	str, err := makeDate(record[year], "2006")
-	if err == nil {
-		fields["publish-date"] = str
+	fields["publish-date"], err = makeDate(record[pub_date], "2006-01-02")
+	if err != nil {
+		return fields, err
 	}
+
+	// set visibility depending on the license
+	if strings.HasPrefix(meta.License, "CC0") == true {
+		fields["default-visibility"] = "open"
+	} else {
+		fields["default-visibility"] = "uva"
+		fields["embargo-release"], _ = embargoRelease(fields["publish-date"])
+		fields["embargo-release-visibility"] = "open"
+	}
+
+	fields["sis-sent"] = "imported"
 
 	// maybe?
 	fields["depositor"] = "dpg3k"
-	fields["create-date"] = time.Now().Format("2006-01-02")
-
-	// for now...
-	fields["default-visibility"] = "open"
+	fields["create-date"] = time.Now().UTC().Format(time.RFC3339)
 
 	return fields, nil
 }
 
-func makeEtdNames(names string) []librametadata.ContributorData {
+func makeEtdName(name string, institution string) *librametadata.ContributorData {
 
-	cdata := make([]librametadata.ContributorData, 0)
-	if len(names) != 0 {
-		for n := range strings.SplitSeq(names, "|") {
-			bits := strings.Split(n, ",")
-			if len(bits) >= 2 {
-				fname := strings.TrimSpace(bits[1])
-				sname := strings.TrimSpace(bits[0])
-				cdata = append(cdata, librametadata.ContributorData{
-					FirstName:   fname,
-					LastName:    sname,
-					Institution: "University of Virginia",
-				})
+	if len(name) != 0 {
+		bits := strings.Split(name, ",")
+		if len(bits) >= 2 {
+			fname := strings.TrimSpace(bits[1])
+			sname := strings.TrimSpace(bits[0])
+			cdata := librametadata.ContributorData{
+				FirstName:   fname,
+				LastName:    sname,
+				Institution: institution,
 			}
+			return &cdata
 		}
 	}
 
-	return cdata
+	return nil
 }
 
 func logEtdMetadata(meta librametadata.ETDWork) {
