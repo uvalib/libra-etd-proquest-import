@@ -246,7 +246,8 @@ func libraEtdFields(meta librametadata.ETDWork, record []string) (uvaeasystore.E
 
 	// all imported items get these
 	fields["disposition"] = "proquest"
-	fields["source"] = fmt.Sprintf("proquest:%s", record[id])
+	fields["source"] = "ingest"
+	fields["source-id"] = fmt.Sprintf("proquest:%s", record[id])
 
 	// all published ETD's get these
 	fields["draft"] = "false"
