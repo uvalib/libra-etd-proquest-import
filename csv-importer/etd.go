@@ -6,6 +6,7 @@ package main
 
 import (
 	"fmt"
+	"html"
 	"path/filepath"
 	"strings"
 	"time"
@@ -163,12 +164,29 @@ func libraEtdMetadata(license string, record []string) (librametadata.ETDWork, e
 	// standard field mapping
 	//
 
-	meta.Title = unknownIfEmpty(record[title])
 	meta.Program = unknownIfEmpty(record[department])
 	meta.RelatedURLs = []string{record[virgo_url]}
 	meta.Language = record[language]
-	meta.Abstract = record[abstract]
 	meta.Notes = record[public_note]
+
+	//
+	// bit of character mapping
+	//
+
+	meta.Title = html.UnescapeString(record[title])
+	meta.Abstract = html.UnescapeString(record[abstract])
+
+	// DEBUG ONLY
+	//if meta.Title != record[title] {
+	//	logAlways(fmt.Sprintf("Title transform for ID:%s", record[id]))
+	//	logAlways(fmt.Sprintf("Before [%s]", record[title]))
+	//	logAlways(fmt.Sprintf("After  [%s]", meta.Title))
+	//}
+	//if meta.Abstract != record[abstract] {
+	//	logAlways(fmt.Sprintf("Abstract transform for ID:%s", record[id]))
+	//	logAlways(fmt.Sprintf("Before [%s]", record[abstract]))
+	//	logAlways(fmt.Sprintf("After  [%s]", meta.Abstract))
+	//}
 
 	//
 	// specialized field processing
@@ -218,17 +236,6 @@ func libraEtdMetadata(license string, record []string) (librametadata.ETDWork, e
 	advisorSet = addContributor(advisorSet, makeEtdName(record[committee_3], record[school_name]))
 	advisorSet = addContributor(advisorSet, makeEtdName(record[committee_4], record[school_name]))
 	advisorSet = addContributor(advisorSet, makeEtdName(record[committee_5], record[school_name]))
-
-	//logDebug(fmt.Sprintf("authors:    [%s]", record[authors]))
-	//logDebug(fmt.Sprintf("title:      [%s]", record[title]))
-	//logDebug(fmt.Sprintf("degree:     [%s]", record[degree]))
-	//logDebug(fmt.Sprintf("license:    [%s]", record[license]))
-	//logDebug(fmt.Sprintf("year:       [%s]", record[year]))
-	//logDebug(fmt.Sprintf("language:   [%s]", record[language]))
-	//logDebug(fmt.Sprintf("keywords:   [%s]", record[keywords]))
-	//logDebug(fmt.Sprintf("department: [%s]", record[department]))
-	//logDebug(fmt.Sprintf("abstract:   [%s]", record[abstract]))
-	//logDebug(fmt.Sprintf("advisors:   [%s]", record[advisors]))
 
 	return meta, nil
 }
