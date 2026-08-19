@@ -15,32 +15,48 @@ import (
 // global logging level
 var logLevel string
 
+type Config struct {
+	InFile    string
+	AssetDir  string
+	Namespace string
+	License   string
+	Dryrun    bool
+	NoFiles   bool
+	StartRow  int
+	Limit     int
+	Debug     bool
+}
+
 // main entry point
 func main() {
 
-	var inFile string
-	var assets string
-	var namespace string
-	var license string
-	var dryrun bool
-	var nofiles bool
-	var limit int
-	var debug bool
+	var config Config
 	var logger *log.Logger
 
-	flag.StringVar(&inFile, "infile", "", "input file")
-	flag.StringVar(&assets, "assets", "", "asset directory (default to input file location)")
-	flag.StringVar(&namespace, "namespace", "", "namespace to import")
-	flag.StringVar(&license, "license", "ARR", "CC0, ARR (all rights reserved)")
-	flag.BoolVar(&dryrun, "dryrun", false, "dry run only")
-	flag.BoolVar(&nofiles, "nofiles", false, "do not include files")
-	flag.BoolVar(&debug, "debug", false, "log debug information")
-	flag.IntVar(&limit, "limit", 0, "limit import count (default is no limit)")
+	flag.StringVar(&config.InFile, "infile", "", "input file")
+	flag.StringVar(&config.AssetDir, "assets", "", "asset directory (default to input file location)")
+	flag.StringVar(&config.Namespace, "namespace", "", "namespace to import")
+	flag.StringVar(&config.License, "license", "ARR", "CC0, ARR (all rights reserved)")
+	flag.BoolVar(&config.Dryrun, "dryrun", false, "dry run only")
+	flag.BoolVar(&config.NoFiles, "nofiles", false, "do not include files")
+	flag.BoolVar(&config.Debug, "debug", false, "log debug information")
+	flag.IntVar(&config.StartRow, "start", 1, "start row (default is 1, the first row)")
+	flag.IntVar(&config.Limit, "limit", 0, "limit import count (default is no limit)")
 	flag.StringVar(&logLevel, "loglevel", "E", "Logging level (D|I|W|E)")
 	flag.Parse()
 
 	// check the required values
-	if len(inFile) == 0 || len(namespace) == 0 {
+	if len(config.InFile) == 0 || len(config.Namespace) == 0 {
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
+	if config.Limit < 0 {
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
+	if config.StartRow < 1 {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
@@ -51,18 +67,18 @@ func main() {
 	}
 
 	// if this was not provided, default to the same as the CSV file
-	if len(assets) == 0 {
-		assets = filepath.Dir(inFile)
+	if len(config.AssetDir) == 0 {
+		config.AssetDir = filepath.Dir(config.InFile)
 	}
 
-	if debug == true {
+	if config.Debug == true {
 		logger = log.Default()
 	}
 
 	// open the input file
-	f, err := os.Open(inFile)
+	f, err := os.Open(config.InFile)
 	if err != nil {
-		logError(fmt.Sprintf("opening %s (%s)", inFile, err))
+		logError(fmt.Sprintf("opening %s (%s)", config.InFile, err))
 		os.Exit(1)
 	}
 	defer f.Close()
@@ -70,8 +86,8 @@ func main() {
 	var proxyConfig uvaeasystore.EasyStoreProxyConfig
 	var es uvaeasystore.EasyStore
 
-	// dont need this if we are doing a dry run
-	if dryrun == false {
+	// don't need this if we are doing a dry run
+	if config.Dryrun == false {
 		proxyConfig = uvaeasystore.ProxyConfigImpl{
 			ServiceEndpoint: os.Getenv("ESENDPOINT"),
 			Log:             logger,
@@ -101,8 +117,8 @@ func main() {
 	errCount := 0
 
 	for {
-		if limit != 0 && okCount+errCount >= limit {
-			logAlways(fmt.Sprintf("terminating after %d record(s)", limit))
+		if config.Limit != 0 && okCount+errCount >= config.Limit {
+			logAlways(fmt.Sprintf("terminating after %d record(s)", config.Limit))
 			break
 		}
 
@@ -117,31 +133,38 @@ func main() {
 			continue
 		}
 
-		// make the object to import
-		eso, err := makeEtdObject(namespace, assets, license, nofiles, record)
+		// are we skipping any records?
+		if okCount+errCount+1 >= config.StartRow {
 
-		if err != nil {
-			logError(fmt.Sprintf("creating object (%s), continuing", err.Error()))
-			errCount++
-			continue
-		}
+			// make the object to import
+			eso, err := makeEtdObject(config, record)
 
-		// if we are configured to import
-		if dryrun == false {
-			_, err = es.ObjectCreate(eso)
 			if err != nil {
-				logError(fmt.Sprintf("importing ns/oid [%s/%s] (%s), continuing", eso.Namespace(), eso.Id(), err.Error()))
+				logError(fmt.Sprintf("creating object (%s), continuing", err.Error()))
 				errCount++
 				continue
 			}
-		}
 
-		okCount++
-		logAlways(fmt.Sprintf("processed item %d ns/oid [%s/%s]", okCount+errCount, eso.Namespace(), eso.Id()))
+			// if we are configured to import
+			if config.Dryrun == false {
+				_, err = es.ObjectCreate(eso)
+				if err != nil {
+					logError(fmt.Sprintf("importing ns/oid [%s/%s] (%s), continuing", eso.Namespace(), eso.Id(), err.Error()))
+					errCount++
+					continue
+				}
+			}
+
+			okCount++
+			logAlways(fmt.Sprintf("processed item %d ns/oid [%s/%s]", okCount+errCount, eso.Namespace(), eso.Id()))
+		} else {
+			okCount++
+			logAlways(fmt.Sprintf("skipped item %d", okCount+errCount))
+		}
 	}
 
 	verb := "imported"
-	if dryrun == true {
+	if config.Dryrun == true {
 		verb = "processed"
 	}
 

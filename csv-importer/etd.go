@@ -98,12 +98,12 @@ var degreeTextLookup = map[string]string{
 	//"":       "SJD (Doctor of Juridical Science)",
 }
 
-func makeEtdObject(namespace string, assetDir string, license string, nofiles bool, record []string) (uvaeasystore.EasyStoreObject, error) {
+func makeEtdObject(config Config, record []string) (uvaeasystore.EasyStoreObject, error) {
 
-	o := uvaeasystore.NewEasyStoreObject(namespace, "")
+	o := uvaeasystore.NewEasyStoreObject(config.Namespace, "")
 
 	// import domain metadata
-	domainMetadata, err := libraEtdMetadata(license, record)
+	domainMetadata, err := libraEtdMetadata(config.License, record)
 	if err != nil {
 		return nil, err
 	}
@@ -132,10 +132,10 @@ func makeEtdObject(namespace string, assetDir string, license string, nofiles bo
 	o.SetMetadata(metadata)
 
 	// do we import files?
-	if nofiles == false {
+	if config.NoFiles == false {
 
 		// load the etd blob
-		etdBlob, err := loadBlob(filepath.Join(assetDir, record[etd_filename]), record[etd_filename])
+		etdBlob, err := loadBlob(filepath.Join(config.AssetDir, record[etd_filename]), record[etd_filename])
 		if err != nil {
 			return nil, err
 		}
@@ -144,7 +144,7 @@ func makeEtdObject(namespace string, assetDir string, license string, nofiles bo
 		blobs = append(blobs, etdBlob)
 
 		if len(record[suplemental_filename]) != 0 {
-			supBlob, err := loadBlob(filepath.Join(assetDir, record[suplemental_filename]), record[suplemental_filename])
+			supBlob, err := loadBlob(filepath.Join(config.AssetDir, record[suplemental_filename]), record[suplemental_filename])
 			if err != nil {
 				return nil, err
 			}
