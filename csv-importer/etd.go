@@ -178,12 +178,12 @@ func libraEtdMetadata(license string, record []string) (librametadata.ETDWork, e
 
 	// DEBUG ONLY
 	//if meta.Title != record[title] {
-	//	logAlways(fmt.Sprintf("Title transform for ID:%s", record[id]))
+	//	logAlways(fmt.Sprintf("Title transform for ID: %s", record[id]))
 	//	logAlways(fmt.Sprintf("Before [%s]", record[title]))
 	//	logAlways(fmt.Sprintf("After  [%s]", meta.Title))
 	//}
 	//if meta.Abstract != record[abstract] {
-	//	logAlways(fmt.Sprintf("Abstract transform for ID:%s", record[id]))
+	//	logAlways(fmt.Sprintf("Abstract transform for ID: %s", record[id]))
 	//	logAlways(fmt.Sprintf("Before [%s]", record[abstract]))
 	//	logAlways(fmt.Sprintf("After  [%s]", meta.Abstract))
 	//}
@@ -237,6 +237,13 @@ func libraEtdMetadata(license string, record []string) (librametadata.ETDWork, e
 	advisorSet = addContributor(advisorSet, makeEtdName(record[committee_4], record[school_name]))
 	advisorSet = addContributor(advisorSet, makeEtdName(record[committee_5], record[school_name]))
 
+	meta.Advisors = advisorSet
+
+	// DEBUG ONLY
+	//if len(meta.Advisors) != 0 {
+	//	logAlways(fmt.Sprintf("Adding %d advisor(s) for ID: %s", len(meta.Advisors), record[id]))
+	//}
+	
 	return meta, nil
 }
 
