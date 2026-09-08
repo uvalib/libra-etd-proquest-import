@@ -243,7 +243,7 @@ func libraEtdMetadata(license string, record []string) (librametadata.ETDWork, e
 	//if len(meta.Advisors) != 0 {
 	//	logAlways(fmt.Sprintf("Adding %d advisor(s) for ID: %s", len(meta.Advisors), record[id]))
 	//}
-	
+
 	return meta, nil
 }
 
@@ -295,6 +295,7 @@ func makeEtdName(name string, institution string) *librametadata.ContributorData
 			cdata := librametadata.ContributorData{
 				FirstName:   fname,
 				LastName:    sname,
+				Department:  "unknown",
 				Institution: institution,
 			}
 			return &cdata
