@@ -113,8 +113,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	rowNum := 0
 	okCount := 0
 	errCount := 0
+	skipCount := 0
 
 	for {
 		if config.Limit != 0 && okCount+errCount >= config.Limit {
@@ -126,41 +128,42 @@ func main() {
 		if err == io.EOF {
 			break
 		}
+		rowNum++
 
-		if err != nil {
-			errCount++
-			logError(fmt.Sprintf("reading row %d (%s), continuing", okCount+errCount, err.Error()))
+		// are we skipping any records?
+		if rowNum < config.StartRow {
+			skipCount++
+			logAlways(fmt.Sprintf("skipped item %d", rowNum))
 			continue
 		}
 
-		// are we skipping any records?
-		if okCount+errCount+1 >= config.StartRow {
+		if err != nil {
+			errCount++
+			logError(fmt.Sprintf("reading row %d (%s), continuing", rowNum, err.Error()))
+			continue
+		}
 
-			// make the object to import
-			eso, err := makeEtdObject(config, record)
+		// make the object to import
+		eso, err := makeEtdObject(config, record)
 
+		if err != nil {
+			logError(fmt.Sprintf("creating object for row %d (%s), continuing", rowNum, err.Error()))
+			errCount++
+			continue
+		}
+
+		// if we are configured to import
+		if config.Dryrun == false {
+			_, err = es.ObjectCreate(eso)
 			if err != nil {
-				logError(fmt.Sprintf("creating object (%s), continuing", err.Error()))
+				logError(fmt.Sprintf("importing row %d ns/oid [%s/%s] (%s), continuing", rowNum, eso.Namespace(), eso.Id(), err.Error()))
 				errCount++
 				continue
 			}
-
-			// if we are configured to import
-			if config.Dryrun == false {
-				_, err = es.ObjectCreate(eso)
-				if err != nil {
-					logError(fmt.Sprintf("importing ns/oid [%s/%s] (%s), continuing", eso.Namespace(), eso.Id(), err.Error()))
-					errCount++
-					continue
-				}
-			}
-
-			okCount++
-			logAlways(fmt.Sprintf("processed item %d ns/oid [%s/%s]", okCount+errCount, eso.Namespace(), eso.Id()))
-		} else {
-			okCount++
-			logAlways(fmt.Sprintf("skipped item %d", okCount+errCount))
 		}
+
+		okCount++
+		logAlways(fmt.Sprintf("processed item %d ns/oid [%s/%s]", rowNum, eso.Namespace(), eso.Id()))
 	}
 
 	verb := "imported"
@@ -168,7 +171,7 @@ func main() {
 		verb = "processed"
 	}
 
-	logAlways(fmt.Sprintf("%s %d object(s) and encountered %d error(s)", verb, okCount, errCount))
+	logAlways(fmt.Sprintf("%s %d object(s), skipped %d and encountered %d error(s)", verb, okCount, skipCount, errCount))
 }
 
 //
