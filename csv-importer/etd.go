@@ -276,8 +276,6 @@ func libraEtdFields(meta librametadata.ETDWork, record []string) (uvaeasystore.E
 		fields["embargo-release-visibility"] = "open"
 	}
 
-	fields["sis-sent"] = "imported"
-
 	// maybe?
 	fields["depositor"] = "dpg3k"
 	fields["create-date"] = time.Now().UTC().Format(time.RFC3339)
