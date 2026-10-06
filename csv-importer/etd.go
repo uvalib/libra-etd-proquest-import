@@ -165,7 +165,7 @@ func libraEtdMetadata(license string, record []string) (librametadata.ETDWork, e
 	//
 
 	meta.Program = unknownIfEmpty(record[department])
-	meta.RelatedURLs = []string{record[virgo_url]}
+	meta.RelatedURLs = splitAndTrim(record[virgo_url], "")
 	meta.Language = record[language]
 	meta.Notes = record[public_note]
 
@@ -210,7 +210,7 @@ func libraEtdMetadata(license string, record []string) (librametadata.ETDWork, e
 	}
 
 	// split with the specified field seperator
-	meta.Keywords = strings.Split(record[keywords], "|")
+	meta.Keywords = splitAndTrim(record[keywords], "|")
 
 	// we support only a single author
 	author1 := makeEtdName(record[author], record[school_name])

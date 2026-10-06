@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/uvalib/easystore/uvaeasystore"
@@ -25,6 +26,23 @@ func defaultIfEmpty(value string, defaultValue string) string {
 		return defaultValue
 	}
 	return value
+}
+
+// split the value with the specified separator (or not at all if the separator is empty), trimming
+// whitespace and dropping empty values. Always returns a non-nil slice
+func splitAndTrim(value string, sep string) []string {
+	result := make([]string, 0)
+	bits := []string{value}
+	if len(sep) != 0 {
+		bits = strings.Split(value, sep)
+	}
+	for _, b := range bits {
+		b = strings.TrimSpace(b)
+		if len(b) != 0 {
+			result = append(result, b)
+		}
+	}
+	return result
 }
 
 func loadBlob(filename string, blobname string) (uvaeasystore.EasyStoreBlob, error) {
