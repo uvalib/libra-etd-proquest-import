@@ -212,30 +212,31 @@ func libraEtdMetadata(license string, record []string) (librametadata.ETDWork, e
 	// split with the specified field seperator
 	meta.Keywords = splitAndTrim(record[keywords], "|")
 
-	// we support only a single author
-	author1 := makeEtdName(record[author], record[school_name])
-	if author1 != nil {
-		author1.Department = record[department]
-		author1.ORCID = record[orcid_uri]
-
-		meta.Author = *author1
+	// we support only a single author, and it is required
+	author1, err := makeEtdName(record[author], record[school_name])
+	if err != nil {
+		return meta, fmt.Errorf("author: %w", err)
 	}
+	if author1 == nil {
+		return meta, fmt.Errorf("author name is empty")
+	}
+	author1.Department = record[department]
+	author1.ORCID = record[orcid_uri]
+	meta.Author = *author1
 
-	// we support multiple advisors/contributors
+	// we support multiple advisors/contributors (advisors followed by committee members)
 	advisorSet := make([]librametadata.ContributorData, 0)
-
-	// advisors
-	advisorSet = addContributor(advisorSet, makeEtdName(record[advisor_1], record[school_name]))
-	advisorSet = addContributor(advisorSet, makeEtdName(record[advisor_2], record[school_name]))
-	advisorSet = addContributor(advisorSet, makeEtdName(record[advisor_3], record[school_name]))
-	advisorSet = addContributor(advisorSet, makeEtdName(record[advisor_4], record[school_name]))
-
-	// committee members
-	advisorSet = addContributor(advisorSet, makeEtdName(record[committee_1], record[school_name]))
-	advisorSet = addContributor(advisorSet, makeEtdName(record[committee_2], record[school_name]))
-	advisorSet = addContributor(advisorSet, makeEtdName(record[committee_3], record[school_name]))
-	advisorSet = addContributor(advisorSet, makeEtdName(record[committee_4], record[school_name]))
-	advisorSet = addContributor(advisorSet, makeEtdName(record[committee_5], record[school_name]))
+	var cdata *librametadata.ContributorData
+	for _, col := range []int{advisor_1, advisor_2, advisor_3, advisor_4,
+		committee_1, committee_2, committee_3, committee_4, committee_5} {
+		cdata, err = makeEtdName(record[col], record[school_name])
+		if err != nil {
+			return meta, fmt.Errorf("advisor/committee member: %w", err)
+		}
+		if cdata != nil {
+			advisorSet = append(advisorSet, *cdata)
+		}
+	}
 
 	meta.Advisors = advisorSet
 
@@ -283,24 +284,38 @@ func libraEtdFields(meta librametadata.ETDWork, record []string) (uvaeasystore.E
 	return fields, nil
 }
 
-func makeEtdName(name string, institution string) *librametadata.ContributorData {
+// parse a name of the form "Last, First" or "Last, First, Suffix" (the suffix is appended to the
+// last name). Returns nil for an empty name and an error for a name that cannot be parsed
+func makeEtdName(name string, institution string) (*librametadata.ContributorData, error) {
 
-	if len(name) != 0 {
-		bits := strings.Split(name, ",")
-		if len(bits) >= 2 {
-			fname := strings.TrimSpace(bits[1])
-			sname := strings.TrimSpace(bits[0])
-			cdata := librametadata.ContributorData{
-				FirstName:   fname,
-				LastName:    sname,
-				Department:  "unknown",
-				Institution: institution,
-			}
-			return &cdata
+	if len(strings.TrimSpace(name)) == 0 {
+		return nil, nil
+	}
+
+	bits := strings.Split(name, ",")
+	for i := range bits {
+		bits[i] = strings.TrimSpace(bits[i])
+	}
+
+	if len(bits) < 2 || len(bits[0]) == 0 || len(bits[1]) == 0 {
+		return nil, fmt.Errorf("cannot parse name [%s], expected \"Last, First\"", name)
+	}
+
+	// append any suffix (Jr., III, etc) to the last name
+	sname := bits[0]
+	for _, suffix := range bits[2:] {
+		if len(suffix) != 0 {
+			sname += " " + suffix
 		}
 	}
 
-	return nil
+	cdata := librametadata.ContributorData{
+		FirstName:   bits[1],
+		LastName:    sname,
+		Department:  "unknown",
+		Institution: institution,
+	}
+	return &cdata, nil
 }
 
 func logEtdMetadata(meta librametadata.ETDWork) {

@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/uvalib/easystore/uvaeasystore"
-	librametadata "github.com/uvalib/libra-metadata"
 )
 
 func unknownIfEmpty(value string) string {
@@ -67,14 +66,6 @@ func loadBlob(filename string, blobname string) (uvaeasystore.EasyStoreBlob, err
 
 	// create the blob
 	return uvaeasystore.NewEasyStoreBlob(blobname, mt, buf), nil
-}
-
-func addContributor(cset []librametadata.ContributorData, cdata *librametadata.ContributorData) []librametadata.ContributorData {
-
-	if cdata != nil {
-		return append(cset, *cdata)
-	}
-	return cset
 }
 
 func loadFile(filename string) ([]byte, error) {
