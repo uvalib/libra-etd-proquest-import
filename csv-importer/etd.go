@@ -263,7 +263,8 @@ func libraEtdFields(meta librametadata.ETDWork, record []string) (uvaeasystore.E
 	fields["submitted-sent"] = "imported"
 	fields["sis-sent"] = "imported"
 
-	fields["publish-date"], err = makeDate(record[pub_date], "2006-01-02")
+	//fields["publish-date"], err = makeDate(record[pub_date], "2006-01-02")
+	fields["publish-date"], err = makeDate(record[year], "2006")
 	if err != nil {
 		return fields, err
 	}
